@@ -1,0 +1,63 @@
+Create Docker Private Registry
+
+I was using Jenkins jobs for test automation. Each Jenkins job has bash script to build docker image and run different tests.
+I thought use docker private registry so jenkins job can pull docker images from registry than build again to save some time.
+The server run registry and Jenkins servers are all installed Ubuntu 16.04.
+
+1. create certificate
+# mkdir -p /certs
+# openssl req \
+  -newkey rsa:4096 -nodes -sha256 -keyout certs/domain.key \
+  -x509 -days 365 -out certs/domain.crt
+
+Then fill the info required, the Common Name will be used in registry name.
+
+-----
+You are about to be asked to enter information that will be incorporated
+into your certificate request.
+What you are about to enter is what is called a Distinguished Name or a DN.
+There are quite a few fields but you can leave some blank
+For some fields there will be a default value,
+If you enter '.', the field will be left blank.
+
+-----
+Country Name (2 letter code) [AU]:
+State or Province Name (full name) [Some-State]:
+Locality Name (eg, city) []:
+Organization Name (eg, company) [Internet Widgits Pty Ltd]:
+Organizational Unit Name (eg, section) []:
+Common Name (e.g. server FQDN or YOUR name) []:myhost
+Email Address []: 
+
+In /certs there are two files: domain.key and domain.crt.
+
+2. create docker registry
+# sudo docker run -d -p 5000:5000 --restart=always --name registry \
+  -v /certs:/certs \
+  -e REGISTRY_HTTP_TLS_CERTIFICATE=/certs/domain.crt \
+  -e REGISTRY_HTTP_TLS_KEY=/certs/domain.key \
+  registry:2
+
+# docker ps
+CONTAINER ID        IMAGE               COMMAND                  CREATED             STATUS              PORTS                    NAMES
+7e0f546dbb65        registry:2          "/entrypoint.sh /e..."   3 seconds ago       Up 1 second         0.0.0.0:5000->5000/tcp   registry
+
+3. install certificate
+# mkdir -p /etc/docker/certs.d/myhost:5000
+# cp /certs/domain.crt /etc/docker/certs.d/myhost:5000/ca.crt
+# service docker reload
+
+Now I can push image to docker registry.
+# docker push myhost:5000/testimage
+
+4. pull from registry on other machines
+Login to another server, then
+# mkdir -p /etc/docker/certs.d/myhost:5000
+
+copy the certificate from registry server
+# scp root@myhost:/etc/docker/certs.d/myhost:5000/ca.crt /etc/docker/certs.d/myhost:5000/.
+# service docker reload
+
+Now I can pull image from docker registry.
+# docker pull myhost:5000/testimage
+
