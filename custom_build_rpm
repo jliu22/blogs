@@ -1,0 +1,45 @@
+Custome Build RPM
+
+I had a task to install a rpm WALinuxAgent into a linux image which will be used to boot VM in Microsoft Azure.
+It is not like just do a "apt-get install" on a Ubuntu server because the Linux OS version is pretty old - Redhat 6.1.
+I cannot find the rpm for my Redhat 6.1, but after I checked the source code, I found there are only a few dependencies.
+These dependencies are compatible in my OS. So I decided to build rpm from source code.
+
+I have these requirements:
+1. Default installation dir is /usr/local/lib/python2.7, my OS dir is /use/lib/python2.7
+2. Build rpm on Ubuntu, install rpm to Redhat 6.1
+3. Update some config in waagent.conf
+
+WALinuxAgent use python library platform.linux_distribution() to get OS distribution to decide what dependencies library to
+install. Because I don't have a compile setup in Redhat 6.1, I was building this rpm in Ubuntu, so I need to hack the setup.py
+file to hard code the OS distribution. I also found the waagent.conf to modify.
+
+After I update the setup.py and waagent.conf, I run "python setup.py bdist_rpm" to generate the rpm.
+In build/bdist.linux-x86_64/rpm directory, I have these directories,
+
+$ ls -ltr
+total 24
+drwxr-xr-x 2 jliu users 4096 Aug 16 22:33 SPECS
+drwxr-xr-x 2 jliu users 4096 Aug 16 22:33 SOURCES
+drwxr-xr-x 3 jliu users 4096 Aug 16 22:33 RPMS
+drwxr-xr-x 2 jliu users 4096 Aug 16 22:33 BUILDROOT
+drwxr-xr-x 2 jliu users 4096 Aug 16 22:33 BUILD
+drwxr-xr-x 2 jliu users 4096 Aug 16 22:33 SRPMS
+
+To change the python library install dir, I need to modify the SPECS/WALinuxAgent.spec file, add --prefix=/usr 
+%install
+python setup.py install --prefix=/usr --single-version-externally-managed -O1 --root=$RPM_BUILD_ROOT --record=INSTALLED_FILES
+
+I use "rpmbuild -bb" to get a new rpm in RPMS dir.
+Before run rpmbuild command, one more step to do is update the $HOME/.rpmmacros to set build dir
+%_topdir output_of_pwd my_build_dir
+
+Then I run
+$rpmbuild -bb SPECS/WALinuxAgent.spec
+
+After build complete, check if rpm has right files by
+$ cd RPMS/noarch
+$ rpm2cpio ./WALinuxAgent-2.2.30-1.noarch.rpm | cpio -idmv
+
+I can see this rpm installed to /usr/lib/python2.7 and the waagent.conf file is updated.
+Now the rpm is ready to publish to build system to make my Linux image.
