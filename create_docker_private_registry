@@ -10,7 +10,7 @@ The server run registry and Jenkins servers are all installed Ubuntu 16.04.
   -newkey rsa:4096 -nodes -sha256 -keyout certs/domain.key \
   -x509 -days 365 -out certs/domain.crt
 
-Then fill the info required, the Common Name will be used in registry name.
+Then fill the info required, the Common Name is the hostname or ip address of docker registry server.
 
 -----
 You are about to be asked to enter information that will be incorporated
