@@ -37,7 +37,7 @@ sda       8:0    0    22G  0 disk
 /dev/sda8             592        2680    16779892   83  Linux
 
 When expand VM disk, the new space are added into bottom of the virtual disk. Cloud-init use growpart to grow partition.
-Looks at this example, the / partition is in the middle of block device, growpart cannot grow root partition to take new space.
+Look at this example, the / partition is in the middle of block device, growpart cannot grow root partition to take new space.
 It can only use the adjacent unallocated space.
 
 So if you want try cloud-init to grow your linux root partition, please check your lsblk and fdisk first.
