@@ -2,8 +2,9 @@ Custome Build RPM
 
 I had a task to install a rpm WALinuxAgent into a linux image which will be used to boot VM in Microsoft Azure.
 It is not like just do a "apt-get install" on a Ubuntu server because the Linux OS version is pretty old - Redhat 6.1.
-I cannot find the rpm for my Redhat 6.1, but after I checked the source code, I found there are only a few dependencies.
-These dependencies are compatible in my OS. So I decided to build rpm from source code.
+I cannot find the rpm for my Redhat 6.1, because Microsoft Azure required WALinuxAgent version should be later than 2.2.10.
+After I checked the source code, I found there are only a few dependencies. These dependencies are compatible in my OS.
+So I decided to build rpm from source code.
 
 I have these requirements:
 1. Default installation dir is /usr/local/lib/python2.7, my OS dir is /use/lib/python2.7
@@ -31,7 +32,7 @@ To change the python library install dir, I need to modify the SPECS/WALinuxAgen
 python setup.py install --prefix=/usr --single-version-externally-managed -O1 --root=$RPM_BUILD_ROOT --record=INSTALLED_FILES
 
 I use "rpmbuild -bb" to get a new rpm in RPMS dir.
-Before run rpmbuild command, one more step to do is update the $HOME/.rpmmacros to set build dir
+Before run rpmbuild command, one more step to do is update the $HOME/.rpmmacros to set build dir to parent dir of SPECS.
 %_topdir output_of_pwd my_build_dir
 
 Then I run
