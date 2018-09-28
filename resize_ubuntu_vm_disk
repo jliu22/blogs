@@ -1,0 +1,246 @@
+Resize Ubuntu VM disk in VMWare Fusion
+
+I am using VMWare Fusion for Ubuntu VM on my Macbook. Expand VM disk size is very easy in VMWare Fusion.
+After expand VM disk, I need update Ubuntu OS to use new space as part of root partition.
+Because Ubuntu 16.04 use LVM as default disk management, I can add new space into the same logical volume
+as root partition.
+
+I had a 20G virtual disk at beginning, I wanted to expand to 25G. After expanded disk size in VMWare Fusion.
+I ssh into the vm and then did these steps:
+
+
+1. check current disk partition and volume group
+
+root@ubuntu:~# fdisk -l /dev/sda
+
+Disk /dev/sda: 25 GiB, 26843545600 bytes, 52428800 sectors
+Units: sectors of 1 * 512 = 512 bytes
+Sector size (logical/physical): 512 bytes / 512 bytes
+I/O size (minimum/optimal): 512 bytes / 512 bytes
+Disklabel type: dos
+Disk identifier: 0xfa17658a
+
+Device     Boot   Start      End  Sectors  Size Id Type
+/dev/sda1  *       2048  1499135  1497088  731M 83 Linux
+/dev/sda2       1501182 41940991 40439810 19.3G  5 Extended
+/dev/sda5       1501184 41940991 40439808 19.3G 8e Linux LVM
+
+root@ubuntu:~# vgdisplay
+
+  --- Volume group ---
+  VG Name               ubuntu-vg
+  System ID             
+  Format                lvm2
+  Metadata Areas        1
+  Metadata Sequence No  3
+  VG Access             read/write
+  VG Status             resizable
+  MAX LV                0
+  Cur LV                2
+  Open LV               2
+  Max PV                0
+  Cur PV                1
+  Act PV                1
+  VG Size               19.28 GiB
+  PE Size               4.00 MiB
+  Total PE              4936
+  Alloc PE / Size       4935 / 19.28 GiB
+  Free  PE / Size       1 / 4.00 MiB
+  VG UUID               0ETGwW-UfLu-JGdz-7zVO-el30-mpfT-gJxsrD
+
+root@ubuntu:~# pvscan
+  PV /dev/sda5   VG ubuntu-vg       lvm2 [19.28 GiB / 4.00 MiB free]
+  Total: 1 [19.28 GiB] / in use: 1 [19.28 GiB] / in no VG: 0 [0   ]
+
+root@ubuntu:~# df -h
+Filesystem                   Size  Used Avail Use% Mounted on
+udev                         467M     0  467M   0% /dev
+tmpfs                         98M  4.6M   93M   5% /run
+/dev/mapper/ubuntu--vg-root   18G   17G     0 100% /
+tmpfs                        488M     0  488M   0% /dev/shm
+tmpfs                        5.0M     0  5.0M   0% /run/lock
+tmpfs                        488M     0  488M   0% /sys/fs/cgroup
+/dev/sda1                    720M   58M  626M   9% /boot
+tmpfs                         98M     0   98M   0% /run/user/1000
+
+
+2. creation new partition using new space
+
+root@ubuntu:~# fdisk /dev/sda
+
+Welcome to fdisk (util-linux 2.27.1).
+Changes will remain in memory only, until you decide to write them.
+Be careful before using the write command.
+
+Command (m for help): n
+Partition type
+   p   primary (1 primary, 1 extended, 2 free)
+   l   logical (numbered from 5)
+
+Select (default p): p
+Partition number (3,4, default 3): 
+First sector (1499136-52428799, default 1499136): 41940992
+Last sector, +sectors or +size{K,M,G,T,P} (41940992-52428799, default 52428799): 
+
+Created a new partition 3 of type 'Linux' and of size 5 GiB.
+
+Command (m for help): t
+Partition number (1-3,5, default 5): 3
+Partition type (type L to list all types): 8e
+Changed type of partition 'Linux' to 'Linux LVM'.
+
+Command (m for help): w
+The partition table has been altered.
+Calling ioctl() to re-read partition table.
+Re-reading the partition table failed.: Device or resource busy
+
+The kernel still uses the old table. The new table will be used at the next reboot or after you run partprobe(8) or kpartx(8).
+
+
+3. reboot
+root@ubuntu:~# reboot
+
+
+4. create phisical volume(pv) and extend volume group
+
+root@ubuntu:~# lsblk
+NAME                  MAJ:MIN RM  SIZE RO TYPE MOUNTPOINT
+sda                     8:0    0   25G  0 disk 
+├─sda1                  8:1    0  731M  0 part /boot
+├─sda2                  8:2    0    1K  0 part 
+├─sda3                  8:3    0    5G  0 part 
+└─sda5                  8:5    0 19.3G  0 part 
+  ├─ubuntu--vg-root   252:0    0 18.3G  0 lvm  /
+  └─ubuntu--vg-swap_1 252:1    0  976M  0 lvm  [SWAP]
+sr0                    11:0    1 1024M  0 rom  
+
+root@ubuntu:~# pvcreate /dev/sda3
+
+  Physical volume "/dev/sda3" successfully created
+
+root@ubuntu:~# vgdisplay
+  --- Volume group ---
+  VG Name               ubuntu-vg
+  System ID             
+  Format                lvm2
+  Metadata Areas        1
+  Metadata Sequence No  3
+  VG Access             read/write
+  VG Status             resizable
+  MAX LV                0
+  Cur LV                2
+  Open LV               2
+  Max PV                0
+  Cur PV                1
+  Act PV                1
+  VG Size               19.28 GiB
+  PE Size               4.00 MiB
+  Total PE              4936
+  Alloc PE / Size       4935 / 19.28 GiB
+  Free  PE / Size       1 / 4.00 MiB
+  VG UUID               0ETGwW-UfLu-JGdz-7zVO-el30-mpfT-gJxsrD
+
+
+root@ubuntu:~# vgextend ubuntu-vg /dev/sda3
+
+  Volume group "ubuntu-vg" successfully extended
+
+root@ubuntu:~# 
+
+root@ubuntu:~# vgdisplay
+
+  --- Volume group ---
+  VG Name               ubuntu-vg
+  System ID             
+  Format                lvm2
+  Metadata Areas        2
+  Metadata Sequence No  4
+  VG Access             read/write
+  VG Status             resizable
+  MAX LV                0
+  Cur LV                2
+  Open LV               2
+  Max PV                0
+  Cur PV                2
+  Act PV                2
+  VG Size               24.28 GiB
+  PE Size               4.00 MiB
+  Total PE              6216
+  Alloc PE / Size       4935 / 19.28 GiB
+  Free  PE / Size       1281 / 5.00 GiB
+  VG UUID               0ETGwW-UfLu-JGdz-7zVO-el30-mpfT-gJxsrD
+
+
+root@ubuntu:~# pvscan
+  PV /dev/sda5   VG ubuntu-vg       lvm2 [19.28 GiB / 4.00 MiB free]
+  PV /dev/sda3   VG ubuntu-vg       lvm2 [5.00 GiB / 5.00 GiB free]
+  Total: 2 [24.28 GiB] / in use: 2 [24.28 GiB] / in no VG: 0 [0   ]
+
+
+root@ubuntu:~# df -h
+
+Filesystem                   Size  Used Avail Use% Mounted on
+udev                         467M     0  467M   0% /dev
+tmpfs                         98M  4.6M   93M   5% /run
+/dev/mapper/ubuntu--vg-root   18G   17G     0 100% /
+tmpfs                        488M     0  488M   0% /dev/shm
+tmpfs                        5.0M     0  5.0M   0% /run/lock
+tmpfs                        488M     0  488M   0% /sys/fs/cgroup
+/dev/sda1                    720M   58M  626M   9% /boot
+tmpfs                         98M     0   98M   0% /run/user/1000
+
+root@ubuntu:~# lsblk
+NAME                  MAJ:MIN RM  SIZE RO TYPE MOUNTPOINT
+sda                     8:0    0   25G  0 disk 
+├─sda1                  8:1    0  731M  0 part /boot
+├─sda2                  8:2    0    1K  0 part 
+├─sda3                  8:3    0    5G  0 part 
+└─sda5                  8:5    0 19.3G  0 part 
+  ├─ubuntu--vg-root   252:0    0 18.3G  0 lvm  /
+  └─ubuntu--vg-swap_1 252:1    0  976M  0 lvm  [SWAP]
+sr0                    11:0    1 1024M  0 rom  
+
+
+5. extend logical volume
+
+root@ubuntu:~# lvextend -L+5G /dev/mapper/ubuntu--vg-root /dev/sda3
+  Size of logical volume ubuntu-vg/root changed from 18.32 GiB (4691 extents) to 23.32 GiB (5971 extents).
+  Logical volume root successfully resized.
+
+root@ubuntu:~# df -h
+Filesystem                   Size  Used Avail Use% Mounted on
+udev                         467M     0  467M   0% /dev
+tmpfs                         98M  4.6M   93M   5% /run
+/dev/mapper/ubuntu--vg-root   18G   17G     0 100% /
+tmpfs                        488M     0  488M   0% /dev/shm
+tmpfs                        5.0M     0  5.0M   0% /run/lock
+tmpfs                        488M     0  488M   0% /sys/fs/cgroup
+/dev/sda1                    720M   58M  626M   9% /boot
+tmpfs                         98M     0   98M   0% /run/user/1000
+
+Till now / partition size still not updated.
+
+
+6. resize file system
+
+root@ubuntu:~# resize2fs /dev/mapper/ubuntu--vg-root
+resize2fs 1.42.13 (17-May-2015)
+Filesystem at /dev/mapper/ubuntu--vg-root is mounted on /; on-line resizing required
+old_desc_blocks = 2, new_desc_blocks = 2
+The filesystem on /dev/mapper/ubuntu--vg-root is now 6114304 (4k) blocks long.
+
+
+Now / partition disk size updated.
+
+root@ubuntu:~# df -h
+Filesystem                   Size  Used Avail Use% Mounted on
+udev                         467M     0  467M   0% /dev
+tmpfs                         98M  4.6M   93M   5% /run
+/dev/mapper/ubuntu--vg-root   23G   17G  4.8G  79% /
+tmpfs                        488M     0  488M   0% /dev/shm
+tmpfs                        5.0M     0  5.0M   0% /run/lock
+tmpfs                        488M     0  488M   0% /sys/fs/cgroup
+/dev/sda1                    720M   58M  626M   9% /boot
+tmpfs                         98M     0   98M   0% /run/user/1000
+
+Now my root partition expanded to use the new allocated space.
