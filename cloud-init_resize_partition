@@ -1,0 +1,43 @@
+Cloud-init resize Linux VM partition
+
+I was working on a task to automatically grow root / partition of a VM after expand disk size.
+Cloud-init tool was introduced to me. At first glance, this tool looked powerful. After I added this
+tool rpm into my linux image and test on hyper-v manager, I found out there's some condition to make it work.
+
+My use case is application installed on root partition of a linux image. When user boot a VM in Azure using this image,
+user may want expand disk size. After VM reboot, we suppose the root partition will grow to take the new unallocated space
+using this cloud-init tool.
+
+While this is not true if root partition is not at the end of disk, I mean adjacent to the new unallocated space. 
+For example, this is a block device table of a linux OS. 
+
+# lsblk
+
+NAME    MAJ:MIN RM   SIZE RO TYPE MOUNTPOINT
+sda       8:0    0    22G  0 disk 
+|-sda1    8:1    0 258.9M  0 part /bootmgr
+|-sda2    8:2    0 133.4M  0 part /boot
+|-sda3    8:3    0 133.4M  0 part 
+|-sda4    8:4    0     1K  0 part 
+|-sda5    8:5    0 517.7M  0 part /
+|-sda6    8:6    0 517.7M  0 part 
+|-sda7    8:7    0     3G  0 part [SWAP]
+|-sda8    8:8    0    16G  0 part /var
+
+# fdisk -l
+
+   Device Boot      Start         End      Blocks   Id  System
+/dev/sda1   *           1          33      265072   83  Linux
+/dev/sda2              34          50      136552+  83  Linux
+/dev/sda3              51          67      136552+  83  Linux
+/dev/sda4              68        2871    22523130    f  W95 Ext'd (LBA)
+/dev/sda5              68         133      530144+  83  Linux
+/dev/sda6             134         199      530144+  83  Linux
+/dev/sda7             200         591     3148739+  82  Linux swap / Solaris
+/dev/sda8             592        2680    16779892   83  Linux
+
+When expand VM disk, the new space are added into bottom of the virtual disk. Cloud-init use growpart to grow partition.
+Looks at this example, the / partition is in the middle of block device, growpart cannot grow root partition to take new space.
+It can only use the adjacent unallocated space.
+
+So if you want try cloud-init to grow your linux root partition, please check your lsblk and fdisk first.
